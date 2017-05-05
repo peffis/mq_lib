@@ -46,7 +46,7 @@ test_server() ->
     mq:add_route(<<"rpc_call">>),
     mq:register_handler(fun(_Payload, _RKey) ->
 				     <<"okidokay">>
-			     end).
+			end).
     
 
 start_link(Name) ->
