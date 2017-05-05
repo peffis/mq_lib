@@ -30,7 +30,13 @@
 -include("deps/rabbit_common/include/rabbit_framing.hrl").
 -endif.
 
--define(MY_EXCHANGE, <<"my_exchange">>).
+-define(THE_EXCHANGE, <<"the_exchange">>).
+
+exchange() ->
+    exchange(get_env(exchange)).
+
+exchange(undefined) ->
+    ?THE_EXCHANGE.
 
 %% API.
 test_client() ->
@@ -107,7 +113,7 @@ init(_Args) ->
     {ok, Connection} = amqp_connection:start(#amqp_params_network{host = ServerHost, 
 								  port = ServerPort}),
     {ok, Channel} = amqp_connection:open_channel(Connection),
-    Declare = #'exchange.declare'{exchange = ?MY_EXCHANGE, type = <<"topic">>},
+    Declare = #'exchange.declare'{exchange = exchange(), type = <<"topic">>},
     #'exchange.declare_ok'{} = amqp_channel:call(Channel, Declare),
     #'queue.declare_ok'{queue = Queue} = amqp_channel:call(Channel, #'queue.declare'{}),
     
@@ -115,7 +121,7 @@ init(_Args) ->
     #'basic.consume_ok'{consumer_tag = Tag} = amqp_channel:call(Channel, Sub),
 
     Binding = #'queue.bind'{queue       = Queue,
-			    exchange    = ?MY_EXCHANGE,
+			    exchange    = exchange(),
 			    routing_key = Queue},
     #'queue.bind_ok'{} = amqp_channel:call(Channel, Binding),
 
@@ -134,21 +140,21 @@ handle_call(_Request, _From, State) ->
 
 handle_cast({add_route, RoutingKey}, State) ->
     Binding = #'queue.bind'{queue       = State#state.queue,
-			    exchange    = ?MY_EXCHANGE,
+			    exchange    = exchange(),
 			    routing_key = RoutingKey},
     #'queue.bind_ok'{} = amqp_channel:call(State#state.channel, Binding),
     {noreply, State};
 
 handle_cast({remove_route, RoutingKey}, State) ->
     Binding = #'queue.unbind'{queue       = State#state.queue,
-			      exchange    = ?MY_EXCHANGE,
+			      exchange    = exchange(),
 			      routing_key = RoutingKey},
     #'queue.unbind_ok'{} = amqp_channel:call(State#state.channel, Binding),
     {noreply, State};
 
 handle_cast({cast, Msg, RoutingKey}, State) ->
     Payload = Msg,
-    Publish = #'basic.publish'{exchange = ?MY_EXCHANGE, routing_key = RoutingKey},
+    Publish = #'basic.publish'{exchange = exchange(), routing_key = RoutingKey},
     amqp_channel:cast(State#state.channel, Publish, #amqp_msg{payload = Payload}),
     {noreply, State};
 
@@ -156,7 +162,7 @@ handle_cast({call, Msg, RoutingKey, CorrelationId, RPid}, State) ->
     Payload = Msg,
     Props = #'P_basic'{correlation_id = CorrelationId,
 		       reply_to = State#state.rpc_queue},
-    Publish = #'basic.publish'{exchange = ?MY_EXCHANGE, 
+    Publish = #'basic.publish'{exchange = exchange(), 
 			       routing_key = RoutingKey
 			      },
     amqp_channel:cast(State#state.channel, Publish, #amqp_msg{props = Props, payload = Payload}),
@@ -194,7 +200,7 @@ handle_info({#'basic.deliver'{delivery_tag = Tag, routing_key = RKey}, Content},
 		_ ->
 		    
 		    Props = #'P_basic'{correlation_id = CorrelationId},
-		    Publish = #'basic.publish'{exchange = ?MY_EXCHANGE,
+		    Publish = #'basic.publish'{exchange = exchange(),
 					       routing_key = Q,
 					       mandatory = true},
 
