@@ -25,7 +25,7 @@
 	  rpc_calls = dict:new()
 	 }).
 
--include("deps/amqp_client/include/amqp_client.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 -ifdef(flycheck).
 -include("deps/rabbit_common/include/rabbit_framing.hrl").
 -endif.
