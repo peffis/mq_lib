@@ -4,3 +4,4 @@ relx
 deps
 ebin
 .erlang.mk
+*~
