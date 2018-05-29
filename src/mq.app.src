@@ -5,8 +5,7 @@
   {applications, [
                   kernel,
                   stdlib,
-                  crypto,
-                  teacup
+                  crypto
                  ]},
   {registered, []},
   {included_applications, [teacup_nats, nats_msg, jsx]},
