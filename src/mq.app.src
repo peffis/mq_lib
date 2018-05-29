@@ -1,0 +1,15 @@
+{application, mq,
+ [
+  {description, ""},
+  {vsn, "0.9"},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  crypto,
+                  teacup
+                 ]},
+  {registered, []},
+  {included_applications, [teacup_nats, nats_msg, jsx]},
+  {modules, []},
+  {env, []}
+ ]}.
