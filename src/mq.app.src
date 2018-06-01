@@ -1,16 +1,16 @@
 {application, mq,
  [
-  {description, ""},
+  {description, "A conveniance layer on top of teacup_nats"},
   {vsn, "0.9"},
   {applications, [
                   kernel,
                   stdlib,
                   crypto,
-                  teacup,
+                  teacup_nats,
                   lager
                  ]},
   {registered, []},
-  {included_applications, [teacup_nats, nats_msg, jsx]},
+  {included_applications, []},
   {modules, []},
   {env, []}
  ]}.
