@@ -12,5 +12,6 @@
   {registered, []},
   {included_applications, []},
   {modules, []},
+  {mod, { mq_app, []}},
   {env, []}
  ]}.
