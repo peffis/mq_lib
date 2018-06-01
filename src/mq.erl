@@ -4,6 +4,8 @@
 %% API.
 -export([start_link/1]).
 
+-compile([{parse_transform, lager_transform}]).
+
 %% gen_server.
 -export([init/1]).
 -export([handle_call/3]).
@@ -59,6 +61,7 @@ init(_Args) ->
     ServerPort = config:get(mq_server_port),
 
     {ok, Connection} = nats:connect(list_to_binary(ServerHost), ServerPort, #{verbose => true}),
+    lager:info("connected to bus at ~s:~p", [ServerHost, ServerPort]),
     {ok, #state{connection = Connection}}.
 
 
