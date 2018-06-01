@@ -10,7 +10,7 @@
                   lager
                  ]},
   {registered, []},
-  {included_applications, []},
+  {included_applications, [nats_msg, jsx]},
   {modules, []},
   {mod, { mq_app, []}},
   {env, []}
