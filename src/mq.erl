@@ -61,7 +61,7 @@ init(_Args) ->
     ServerPort = config:get(mq_server_port),
 
     {ok, Connection} = nats:connect(list_to_binary(ServerHost), ServerPort, #{verbose => true}),
-    lager:info("connected to bus at ~s:~p", [ServerHost, ServerPort]),
+    lager:info("connected to NATS bus at ~s:~p", [ServerHost, ServerPort]),
     {ok, #state{connection = Connection}}.
 
 

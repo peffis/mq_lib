@@ -7,7 +7,6 @@
 -compile([{parse_transform, lager_transform}]).
 
 start(_Type, _Args) ->
-    lager:info("mq:start was called"),
     mq_sup:start_link().
 
 stop(_State) ->
