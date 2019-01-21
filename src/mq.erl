@@ -14,12 +14,13 @@
 -export([terminate/2]).
 -export([code_change/3]).
 
--export([add_route/1, add_route/2, remove_route/1, cast/2, register_handler/1]).
+-export([add_route/1, add_route/2, remove_route/1, cast/2, cast/3, register_handler/1]).
 
 
 -record(state, {
 	  connection = undefined,
-	  handler = undefined
+	  handler = undefined,
+          arity = undefined
 	 }).
 
 
@@ -48,6 +49,17 @@ cast(Msg, RoutingKey) when is_list(RoutingKey) ->
     cast(Msg, list_to_binary(RoutingKey));
 cast(Msg, RoutingKey) when is_binary(Msg) ->
     gen_server:cast(?MODULE, {cast, Msg, RoutingKey}).
+
+cast(Msg, RoutingKey, ReplyTo) when is_list(Msg) ->
+    cast(list_to_binary(Msg), RoutingKey, ReplyTo);
+cast(Msg, RoutingKey, ReplyTo) when is_list(RoutingKey) ->
+    cast(Msg, list_to_binary(RoutingKey), ReplyTo);
+cast(Msg, RoutingKey, ReplyTo) when is_list(ReplyTo) ->
+    cast(Msg, RoutingKey, list_to_binary(ReplyTo));
+cast(Msg, RoutingKey, ReplyTo) when is_binary(Msg), is_binary(RoutingKey), is_binary(ReplyTo) ->
+    gen_server:cast(?MODULE, {cast, Msg, RoutingKey, ReplyTo}).
+
+
 
 register_handler(Fun) ->
     gen_server:cast(?MODULE, {register_handler, Fun}).
@@ -82,8 +94,13 @@ handle_cast({cast, Msg, Subject}, #state{connection = Conn} = State) ->
     ok = nats:pub(Conn, Subject, #{payload => Msg}),
     {noreply, State};
 
+handle_cast({cast, Msg, Subject, ReplyTo}, #state{connection = Conn} = State) ->
+    ok = nats:pub(Conn, Subject, #{payload => Msg, reply_to => ReplyTo}),
+    {noreply, State};
+
 handle_cast({register_handler, Fun}, State) ->
-    {noreply, State#state{handler = Fun}};
+    {arity, HandlerArity} = erlang:fun_info(Fun, arity),
+    {noreply, State#state{handler = Fun, arity = HandlerArity}};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -92,8 +109,12 @@ handle_cast(_Msg, State) ->
 handle_info({_Conn, {msg, _Subject, _ReplyTo, _Payload}}, #state{handler = undefined} = State) ->
     {noreply, State};
 
-handle_info({Conn, {msg, Subject, _ReplyTo, Payload}}, #state{handler = Handler, connection = Conn} = State) ->
+handle_info({Conn, {msg, Subject, _ReplyTo, Payload}}, #state{handler = Handler, connection = Conn, arity = 2} = State) ->
     Handler(Payload, Subject),
+    {noreply, State};
+
+handle_info({Conn, {msg, Subject, ReplyTo, Payload}}, #state{handler = Handler, connection = Conn, arity = 3} = State) ->
+    Handler(Payload, Subject, ReplyTo),
     {noreply, State};
 
 handle_info(_Info, State) ->
