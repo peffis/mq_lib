@@ -101,7 +101,7 @@ handle_info({Conn, {msg, Subject, ReplyTo, Payload}}, #state{handlers = Handlers
         undefined ->
             ok;
 
-        Handler -> Handler(Payload, Subject, ReplyTo)
+        Handler -> Handler(Payload, ReplyTo)
     end,
     {noreply, State};
 
