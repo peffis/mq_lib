@@ -14,55 +14,49 @@
 -export([terminate/2]).
 -export([code_change/3]).
 
--export([add_route/1, add_route/2, remove_route/1, cast/2, cast/3, register_handler/1]).
+-export([subscribe/2, subscribe/3, unsubscribe/1, publish/2, publish/3]).
 
 
 -record(state, {
 	  connection = undefined,
-	  handler = undefined,
-          arity = undefined
+	  handlers = #{}
 	 }).
-
-
-
 
 %% API.
 start_link(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, [], []).
 
-add_route(RoutingKey) ->
-    add_route(RoutingKey, #{}).
+subscribe(Subject, Handler) ->
+    subscribe(Subject, Handler, #{}).
 
-add_route(RoutingKey, Opts) when is_list(RoutingKey) ->
-    add_route(list_to_binary(RoutingKey), Opts);
-add_route(RoutingKey, Opts) ->
-    gen_server:cast(?MODULE, {add_route, RoutingKey, Opts}).
+subscribe(Subject, Handler, Opts) when is_list(Subject) ->
+    subscribe(list_to_binary(Subject), Handler, Opts);
+subscribe(Subject, Handler, Opts) when is_binary(Subject) ->
+    gen_server:cast(?MODULE, {subscribe, Subject, Handler, Opts}).
 
-remove_route(RoutingKey) when is_list(RoutingKey) ->
-    remove_route(list_to_binary(RoutingKey));
-remove_route(RoutingKey) ->
-    gen_server:cast(?MODULE, {remove_route, RoutingKey}).
 
-cast(Msg, RoutingKey) when is_list(Msg) ->
-    cast(list_to_binary(Msg), RoutingKey);
-cast(Msg, RoutingKey) when is_list(RoutingKey) ->
-    cast(Msg, list_to_binary(RoutingKey));
-cast(Msg, RoutingKey) when is_binary(Msg) ->
-    gen_server:cast(?MODULE, {cast, Msg, RoutingKey}).
-
-cast(Msg, RoutingKey, ReplyTo) when is_list(Msg) ->
-    cast(list_to_binary(Msg), RoutingKey, ReplyTo);
-cast(Msg, RoutingKey, ReplyTo) when is_list(RoutingKey) ->
-    cast(Msg, list_to_binary(RoutingKey), ReplyTo);
-cast(Msg, RoutingKey, ReplyTo) when is_list(ReplyTo) ->
-    cast(Msg, RoutingKey, list_to_binary(ReplyTo));
-cast(Msg, RoutingKey, ReplyTo) when is_binary(Msg), is_binary(RoutingKey), is_binary(ReplyTo) ->
-    gen_server:cast(?MODULE, {cast, Msg, RoutingKey, ReplyTo}).
+unsubscribe(Subject) when is_list(Subject) ->
+    unsubscribe(list_to_binary(Subject));
+unsubscribe(Subject) when is_binary(Subject) ->
+    gen_server:cast(?MODULE, {unsubscribe, Subject}).
 
 
 
-register_handler(Fun) ->
-    gen_server:cast(?MODULE, {register_handler, Fun}).
+publish(Msg, Subject) when is_list(Msg) ->
+    publish(list_to_binary(Msg), Subject);
+publish(Msg, Subject) when is_list(Subject) ->
+    publish(Msg, list_to_binary(Subject));
+publish(Msg, Subject) when is_binary(Msg) ->
+    gen_server:cast(?MODULE, {publish, Msg, Subject}).
+
+publish(Msg, Subject, ReplyTo) when is_list(Msg) ->
+    publish(list_to_binary(Msg), Subject, ReplyTo);
+publish(Msg, Subject, ReplyTo) when is_list(Subject) ->
+    publish(Msg, list_to_binary(Subject), ReplyTo);
+publish(Msg, Subject, ReplyTo) when is_list(ReplyTo) ->
+    publish(Msg, Subject, list_to_binary(ReplyTo));
+publish(Msg, Subject, ReplyTo) when is_binary(Msg), is_binary(Subject), is_binary(ReplyTo) ->
+    gen_server:cast(?MODULE, {publish, Msg, Subject, ReplyTo}).
 
 
 
@@ -82,39 +76,33 @@ handle_call(_Request, _From, State) ->
     {reply, ignored, State}.
 
 
-handle_cast({add_route, Subject, Opts}, #state{connection = Conn} = State) ->
+handle_cast({subscribe, Subject, Handler, Opts}, #state{connection = Conn, handlers = Handlers} = State) ->
     ok = nats:sub(Conn, Subject, Opts),
-    {noreply, State};
+    {noreply, State#state{handlers = Handlers#{Subject => Handler}}};
 
-handle_cast({remove_route, Subject}, #state{connection = Conn} = State) ->
+handle_cast({unsubscribe, Subject}, #state{connection = Conn, handlers = Handlers} = State) ->
     ok = nats:unsub(Conn, Subject),
-    {noreply, State};
+    {noreply, State#state{handlers = maps:remove(Subject, Handlers)}};
 
-handle_cast({cast, Msg, Subject}, #state{connection = Conn} = State) ->
+handle_cast({publish, Msg, Subject}, #state{connection = Conn} = State) ->
     ok = nats:pub(Conn, Subject, #{payload => Msg}),
     {noreply, State};
 
-handle_cast({cast, Msg, Subject, ReplyTo}, #state{connection = Conn} = State) ->
+handle_cast({publish, Msg, Subject, ReplyTo}, #state{connection = Conn} = State) ->
     ok = nats:pub(Conn, Subject, #{payload => Msg, reply_to => ReplyTo}),
     {noreply, State};
-
-handle_cast({register_handler, Fun}, State) ->
-    {arity, HandlerArity} = erlang:fun_info(Fun, arity),
-    {noreply, State#state{handler = Fun, arity = HandlerArity}};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
-handle_info({_Conn, {msg, _Subject, _ReplyTo, _Payload}}, #state{handler = undefined} = State) ->
-    {noreply, State};
+handle_info({Conn, {msg, Subject, ReplyTo, Payload}}, #state{handlers = Handlers, connection = Conn} = State) ->
+    case maps:get(Subject, Handlers, undefined) of
+        undefined ->
+            ok;
 
-handle_info({Conn, {msg, Subject, _ReplyTo, Payload}}, #state{handler = Handler, connection = Conn, arity = 2} = State) ->
-    Handler(Payload, Subject),
-    {noreply, State};
-
-handle_info({Conn, {msg, Subject, ReplyTo, Payload}}, #state{handler = Handler, connection = Conn, arity = 3} = State) ->
-    Handler(Payload, Subject, ReplyTo),
+        Handler -> Handler(Payload, Subject, ReplyTo)
+    end,
     {noreply, State};
 
 handle_info(_Info, State) ->
