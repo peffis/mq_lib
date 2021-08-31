@@ -74,6 +74,7 @@ init(_Args) ->
 subscribe_static_routes([]) ->
     ok;
 subscribe_static_routes([{Topic, Handler} | Rest]) ->
+    lager:info("subscribing to ~s ~p", [Topic, Handler]),
     mq:subscribe(Topic, Handler),
     subscribe_static_routes(Rest).
 
