@@ -68,9 +68,14 @@ init(_Args) ->
 
     {ok, Connection} = nats:connect(list_to_binary(ServerHost), ServerPort, #{verbose => true}),
     lager:info("connected to NATS bus at ~s:~p", [ServerHost, ServerPort]),
+    subscribe_static_routes(config:get(mq_static_subscriptions)),
     {ok, #state{connection = Connection}}.
 
-
+subscribe_static_routes([]) ->
+    ok;
+subscribe_static_routes([{Topic, Handler} | Rest]) ->
+    mq:subscribe(Topic, Handler),
+    subscribe_static_routes(Rest).
 
 handle_call(_Request, _From, State) ->
     {reply, ignored, State}.
